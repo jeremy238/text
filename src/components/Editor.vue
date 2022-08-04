@@ -76,10 +76,10 @@
 import Vue, { set } from 'vue'
 import escapeHtml from 'escape-html'
 import moment from '@nextcloud/moment'
-import { getVersion, receiveTransaction } from 'prosemirror-collab'
-import { Step } from 'prosemirror-transform'
 import { getCurrentUser } from '@nextcloud/auth'
 import { loadState } from '@nextcloud/initial-state'
+import { Collaboration } from '@tiptap/extension-collaboration'
+import * as Y from 'yjs'
 
 import {
 	EDITOR,
@@ -95,6 +95,7 @@ import ReadonlyBar from './Menu/ReadonlyBar.vue'
 
 import { logger } from '../helpers/logger.js'
 import { SyncService, ERROR_TYPE, IDLE_TIMEOUT } from './../services/SyncService.js'
+import createSyncServiceProvider from './../services/SyncServiceProvider.js'
 import AttachmentResolver from './../services/AttachmentResolver.js'
 import { extensionHighlight } from '../helpers/mappings.js'
 import { createEditor, serializePlainText, loadSyntaxHighlight } from './../EditorFactory.js'
@@ -102,7 +103,7 @@ import { createMarkdownSerializer } from './../extensions/Markdown.js'
 import markdownit from './../markdownit/index.js'
 import markdownitFrontMatter from 'markdown-it-front-matter'
 
-import { Collaboration, Keymap, UserColor } from './../extensions/index.js'
+import { Keymap } from './../extensions/index.js'
 import DocumentStatus from './Editor/DocumentStatus.vue'
 import isMobile from './../mixins/isMobile.js'
 import store from './../mixins/store.js'
@@ -111,8 +112,6 @@ import ContentContainer from './Editor/ContentContainer.vue'
 import Status from './Editor/Status.vue'
 import MainContainer from './Editor/MainContainer.vue'
 import Wrapper from './Editor/Wrapper.vue'
-
-const EDITOR_PUSH_DEBOUNCE = 200
 
 export default {
 	name: 'Editor',
@@ -305,6 +304,8 @@ export default {
 		this.$parent.$emit('update:loaded', true)
 	},
 	created() {
+		this.$ydoc = new Y.Doc()
+		this.$providers = []
 		this.$editor = null
 		this.$syncService = null
 		this.$attachmentResolver = null
@@ -313,6 +314,7 @@ export default {
 		}, 2000)
 	},
 	beforeDestroy() {
+		this.$providers.forEach(p => p.destroy())
 		this.close()
 	},
 	methods: {
@@ -345,13 +347,15 @@ export default {
 
 			this.listenSyncServiceEvents()
 
-			this.$syncService.open({
+			const syncServiceProvider = createSyncServiceProvider({
+				ydoc: this.$ydoc,
+				syncService: this.$syncService,
 				fileId: this.fileId,
-				filePath: this.relativePath,
 				initialSession: this.initialSession,
 			}).catch((e) => {
 				this.hasConnectionIssue = true
 			})
+			this.$providers.push(syncServiceProvider)
 			this.forceRecreate = false
 		},
 
@@ -499,46 +503,12 @@ export default {
 						},
 						extensions: [
 							Collaboration.configure({
-								// the initial version we start with
-								// version is an integer which is incremented with every change
-								version: this.document.initialVersion,
-								clientID: this.currentSession.id,
-								// debounce changes so we can save some bandwidth
-								debounce: EDITOR_PUSH_DEBOUNCE,
-								onSendable: ({ sendable }) => {
-									if (this.$syncService) {
-										this.$syncService.sendSteps()
-									}
-								},
-								update: ({ steps, version, editor }) => {
-									const { state, view, schema } = editor
-									if (getVersion(state) > version) {
-										return
-									}
-									const tr = receiveTransaction(
-										state,
-										steps.map(item => Step.fromJSON(schema, item.step)),
-										steps.map(item => item.clientID),
-									)
-									tr.setMeta('clientID', steps.map(item => item.clientID))
-									view.dispatch(tr)
-								},
+								document: this.$ydoc,
 							}),
 							Keymap.configure({
 								'Mod-s': () => {
 									this.$syncService.save()
 									return true
-								},
-							}),
-							UserColor.configure({
-								clientID: this.currentSession.id,
-								color: (clientID) => {
-									const session = this.sessions.find(item => '' + item.id === '' + clientID)
-									return session?.color
-								},
-								name: (clientID) => {
-									const session = this.sessions.find(item => '' + item.id === '' + clientID)
-									return session?.userId ? session.displayName : (session?.guestName ? session.guestName : t('text', 'Guest'))
 								},
 							}),
 						],
@@ -566,22 +536,11 @@ export default {
 
 		onSync({ steps, document }) {
 			this.hasConnectionIssue = false
-			try {
-				const collaboration = this.$editor.extensionManager.extensions.find(e => e.name === 'collaboration')
-				collaboration.options.update({
-					version: document.currentVersion,
-					steps,
-					editor: this.$editor,
-				})
-				this.$syncService.state = this.$editor.state
-				this.updateLastSavedStatus()
-				this.$nextTick(() => {
-					this.$emit('sync-service:sync')
-				})
-			} catch (error) {
-				logger.error('Failed to update steps in collaboration plugin', { error })
-				// TODO: we should recreate the editing session when this happens
-			}
+			this.$syncService.state = this.$editor.state
+			this.updateLastSavedStatus()
+			this.$nextTick(() => {
+				this.$emit('sync-service:sync')
+			})
 			this.document = document
 		},
 

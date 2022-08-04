@@ -57,6 +57,7 @@
     "@tiptap/extension-code": "^2.0.0-beta.199",
     "@tiptap/extension-code-block": "^2.0.0-beta.199",
     "@tiptap/extension-code-block-lowlight": "^2.0.0-beta.199",
+    "@tiptap/extension-collaboration": "^2.0.0-beta.199",
     "@tiptap/extension-document": "^2.0.0-beta.199",
     "@tiptap/extension-dropcursor": "^2.0.0-beta.199",
     "@tiptap/extension-hard-break": "^2.0.0-beta.199",
@@ -108,7 +109,9 @@
     "vue": "^2.7.13",
     "vue-click-outside": "^1.1.0",
     "vue-material-design-icons": "^5.1.2",
-    "vuex": "^3.6.2"
+    "vuex": "^3.6.2",
+    "y-websocket": "^1.4.5",
+    "yjs": "^13.5.41"
   },
   "engines": {
     "node": "^16.0.0",
