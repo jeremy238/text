@@ -348,8 +348,6 @@ export default {
 				syncService: this.$syncService,
 				fileId: this.fileId,
 				initialSession: this.initialSession,
-			}).catch((e) => {
-				this.hasConnectionIssue = true
 			})
 			this.$providers.push(syncServiceProvider)
 			this.forceRecreate = false

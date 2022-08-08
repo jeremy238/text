@@ -115,14 +115,7 @@ class SyncService {
 			guestName: this.options.guestName,
 			forceRecreate: this.options.forceRecreate,
 		})
-			.then(response => response.data, error => {
-				if (!error.response || error.code === 'ECONNABORTED') {
-					this.emit('error', { type: ERROR_TYPE.CONNECTION_FAILED, data: {} })
-				} else {
-					this.emit('error', { type: ERROR_TYPE.LOAD_ERROR, data: error.response.status })
-				}
-				throw error
-			})
+			.then(response => response.data, error => this._emitError(error))
 	}
 
 	_fetchDocument() {
@@ -136,8 +129,16 @@ class SyncService {
 				// Axios normally tries to parse string responses as json.
 				// Just return the plain content here.
 				transformResponse: [(data) => data],
-			}
-		).then(response => response.data)
+			})
+			.then(response => response.data, error => this._emitError(error))
+	}
+
+	_emitError(error) {
+		if (!error.response || error.code === 'ECONNABORTED') {
+			this.emit('error', { type: ERROR_TYPE.CONNECTION_FAILED, data: {} })
+		} else {
+			this.emit('error', { type: ERROR_TYPE.LOAD_ERROR, data: error.response.status })
+		}
 	}
 
 	updateSession(guestName) {
