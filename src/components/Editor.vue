@@ -471,7 +471,7 @@ export default {
 			})
 		},
 
-		onLoaded({ documentSource }) {
+		onLoaded({ document, documentSource }) {
 			let frontMatter = ''
 			const rendered = !this.isRichEditor
 				? `<pre>${escapeHtml(documentSource)}</pre>`
@@ -480,7 +480,7 @@ export default {
 				}).render(documentSource)
 
 			this.hasConnectionIssue = false
-			const content = frontMatter + rendered
+			const content = document.currentVersion ? '' : frontMatter + rendered
 			const language = extensionHighlight[this.fileExtension] || this.fileExtension;
 
 			(this.isRichEditor ? Promise.resolve() : loadSyntaxHighlight(language))
